@@ -1,20 +1,20 @@
 import asyncio
 from contextlib import suppress
 
-
 from aiogram import Router, Bot, Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.enums.parse_mode import ParseMode
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from motor.core import AgnosticDatabase as MDB
-from pymongo.errors import DuplicateKeyError 
+from pymongo.errors import DuplicateKeyError
+
+from callbacks import navigation, bank_loans_act
 
 from keyboards.builders import inline_builder
 
 from middlewares.throttling import ThrottlingMiddleware
-from middlewares.subscription_checker import CheckSubscription
 
 from config_reader import config
 
@@ -22,34 +22,41 @@ router = Router()
 
 
 @router.message(CommandStart())
-async def start(message: Message, db: MDB) -> None: 
+@router.callback_query(F.data == "main_page")
+async def start(message: Message | CallbackQuery, db: MDB) -> None:
     with suppress(DuplicateKeyError):
         await db.users.insert_one(
             dict(
-                _id = message.from_user.id,
-                balance = 100,
-                bank = {
-                    "currency":[0,0,0],
-                    "loans":{
+                _id=message.from_user.id,
+                balance=100,
+                bank={
+                    "currency": [0, 0, 0],
+                    "loans": {
                         "total_amount": 0,
-                        "repaid":{"amount":0, "when": []},
+                        "repaid": {"amount": 0, "when": []},
                         "when": {"start": "", "end": ""}
                     },
-                    "deposit": {"total_emounds": 0, "when": ""}
+                    "deposit": {"total_amount": 0, "when": ""}
                 },
-                actives = {"total_amount":0, "items": []},
-                passives = {"total_amount":0, "items": []},
-                bussinesses = {"total_amount":0, "items": []}
-
+                actives={"total_amount": 0, "items": []},
+                passives={"total_amount": 0, "items": []},
+                businesses={"total_amount": 0, "items": []}
             )
         )
-    await message.answer(
-        "Let's get down business",
+
+    pattern = dict(
+        text="Let's get down business!",
         reply_markup=inline_builder(
-            ["👲 Профиль","🏢 Рынки", "🏦 Банк", "🏭 Бизнес"],
-            ["profile","markets","bank","business"]
+            ["👤 Профиль", "🏦 Банк", "🏙 Рынки", "💸 Бизенс"],
+            ["profile", "bank", "markets", "business"]
         )
-        )
+    )
+
+    if isinstance(message, CallbackQuery):
+        await message.message.edit_text(**pattern)
+        await message.answer()
+    else:
+        await message.answer(**pattern)
 
 
 async def main() -> None:
@@ -59,12 +66,12 @@ async def main() -> None:
     cluster = AsyncIOMotorClient(host="localhost", port=27017)
     db = cluster.ecodb
 
-
     dp.message.middleware(ThrottlingMiddleware())
-    #dp.message.middleware(CheckSubscription())
 
     dp.include_routers(
-        router
+        router,
+        navigation.router,
+        bank_loans_act.router
     )
 
     await bot.delete_webhook(True)
@@ -72,7 +79,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print('Stop')
+    asyncio.run(main())

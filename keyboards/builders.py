@@ -1,7 +1,8 @@
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
+
 def inline_builder(
-    text: str| list[str],
+    text: str | list[str],
     callback_data: str | list[str],
     sizes: int | list[int]=2,
     **kwargs
@@ -16,11 +17,9 @@ def inline_builder(
         sizes = [sizes]
 
     [
-        builder.button(text= txt, callback_data=cb)
-        for txt, cb in zip (text, callback_data)
-
+        builder.button(text=txt, callback_data=cb)
+        for txt, cb in zip(text, callback_data)
     ]
+
     builder.adjust(*sizes)
     return builder.as_markup(**kwargs)
-
-    
